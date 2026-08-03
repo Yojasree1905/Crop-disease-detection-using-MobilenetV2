@@ -1,0 +1,26 @@
+# Byte-compiled / Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Dataset folders (if large raw data is stored locally)
+organized_datasets/
+uploads/
+temp/
