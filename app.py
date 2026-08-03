@@ -7,6 +7,8 @@ from PIL import Image
 import numpy as np
 from flask import Flask, request, render_template_string
 
+from agronomist_agent import query_agronomist_agent
+
 # Force UTF-8 encoding for standard output on Windows
 if sys.platform == 'win32':
     try:
@@ -57,78 +59,14 @@ if os.path.exists(STATS_PATH):
     except Exception:
         pass
 
-# Comprehensive Agricultural Advisory Knowledge Base
-ADVISORY_KNOWLEDGE_BASE = {
-    "anthracnose": {
-        "title": "Anthracnose Fungal Infection",
-        "treatment": "Prune and remove infected leaves. Apply copper-based fungicides (e.g., Bordeaux mixture) every 7-10 days. Avoid overhead irrigation to minimize leaf moisture.",
-        "icon": "🍂"
-    },
-    "bacterial blight": {
-        "title": "Bacterial Blight Infection",
-        "treatment": "Use certified disease-free seeds and resistant crop varieties. Avoid working in wet fields. Apply copper hydroxide sprays during early symptoms.",
-        "icon": "🦠"
-    },
-    "brown spot": {
-        "title": "Brown Spot Disease",
-        "treatment": "Apply recommended fungicides (such as Mancozeb). Maintain optimal soil fertility with balanced nitrogen fertilization and improve crop spacing for airflow.",
-        "icon": "🟤"
-    },
-    "fall armyworm": {
-        "title": "Fall Armyworm Pest Infestation",
-        "treatment": "Deploy pheromone traps for pest monitoring. Apply neem oil bio-pesticides or Emamectin benzoate sprays in early larval instars.",
-        "icon": "🐛"
-    },
-    "grasshopper": {
-        "title": "Grasshopper Defoliation Pest",
-        "treatment": "Use natural biocontrol agents (e.g., Beauveria bassiana). Hand-pick or use perimeter boundary netting to protect vulnerable crop borders.",
-        "icon": "🦗"
-    },
-    "green mite": {
-        "title": "Green Spider Mite Infestation",
-        "treatment": "Spray selective miticides or sulfur-based formulations. Encourage predatory mites and prune heavily infested lower foliage.",
-        "icon": "🕷️"
-    },
-    "gummosis": {
-        "title": "Gummosis Fungal Bark Canker",
-        "treatment": "Scrape infected bark tissues cleanly and paint wounds with Bordeaux paste. Ensure proper orchard soil drainage and avoid mechanical trunk injury.",
-        "icon": "🪵"
-    },
-    "healthy": {
-        "title": "Healthy Crop Leaf",
-        "treatment": "No plant disease detected. Maintain regular irrigation, balanced fertilization, and routine crop field scouting.",
-        "icon": "🌿"
-    },
-    "mosaic": {
-        "title": "Mosaic Virus Disease",
-        "treatment": "Remove and destroy infected plants immediately (rogueing). Control aphid and whitefly vectors using insecticidal soaps or systemic insecticides.",
-        "icon": "🧬"
-    },
-    "red rust": {
-        "title": "Red Rust Fungal Infection",
-        "treatment": "Apply copper oxychloride or sulfur fungicides at first appearance. Clear surrounding weed hosts and improve canopy sunlight penetration.",
-        "icon": "🔴"
-    },
-    "streak virus": {
-        "title": "Streak Virus Disease",
-        "treatment": "Plant certified virus-free seed stock. Manage leafhopper insect vectors using systemic seed treatments and reflective plastic mulches.",
-        "icon": "⚡"
-    },
-    "verticillium wilt": {
-        "title": "Verticillium Fungal Vascular Wilt",
-        "treatment": "Practice multi-year crop rotation with non-host crops (e.g., corn/grasses). Implement soil solarization during hot summer months.",
-        "icon": "🥀"
-    }
-}
-
-# HTML Template
+# HTML Template with AI Agronomist Agent Card
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Crop Disease Diagnostic Portal | MobileNetV2 AI</title>
+    <title>Smart Crop Disease Diagnostic Portal | AI Agronomist Agent</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
@@ -147,16 +85,8 @@ HTML_TEMPLATE = '''
             --radius: 16px;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
-        }
-
-        h1, h2, h3, h4 {
-            font-family: 'Outfit', sans-serif;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; }
 
         body {
             background-color: var(--bg-dark);
@@ -171,247 +101,86 @@ HTML_TEMPLATE = '''
             padding: 40px 20px;
         }
 
-        .container {
-            max-width: 850px;
-            width: 100%;
-        }
+        .container { max-width: 900px; width: 100%; }
 
-        .header {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-
-        .header-icon {
-            font-size: 3rem;
-            color: var(--primary);
-            margin-bottom: 12px;
-            display: inline-block;
-            filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.4));
-        }
-
-        .header h1 {
-            font-size: 2.4rem;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #A7F3D0, #10B981);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-
-        .header p {
-            color: #9CA3AF;
-            font-size: 15px;
-        }
+        .header { text-align: center; margin-bottom: 32px; }
+        .header-icon { font-size: 3rem; color: var(--primary); margin-bottom: 12px; display: inline-block; filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.4)); }
+        .header h1 { font-size: 2.4rem; font-weight: 800; letter-spacing: -0.5px; background: linear-gradient(135deg, #A7F3D0, #10B981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+        .header p { color: #9CA3AF; font-size: 15px; }
 
         .stats-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid var(--border);
-            padding: 6px 16px;
-            border-radius: 30px;
-            font-size: 13px;
-            color: var(--primary);
-            margin-top: 14px;
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(16, 185, 129, 0.1); border: 1px solid var(--border);
+            padding: 6px 16px; border-radius: 30px; font-size: 13px; color: var(--primary); margin-top: 14px;
         }
 
         .glass-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 36px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            background: var(--card-bg); backdrop-filter: blur(16px);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 36px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
         }
 
         .upload-area {
-            border: 2px dashed rgba(16, 185, 129, 0.4);
-            border-radius: 12px;
-            padding: 40px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: rgba(6, 78, 59, 0.15);
-            margin-bottom: 24px;
+            border: 2px dashed rgba(16, 185, 129, 0.4); border-radius: 12px;
+            padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.3s;
+            background: rgba(6, 78, 59, 0.15); margin-bottom: 24px;
         }
-
-        .upload-area:hover {
-            border-color: var(--primary);
-            background: rgba(16, 185, 129, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .upload-icon {
-            font-size: 2.5rem;
-            color: var(--primary);
-            margin-bottom: 12px;
-        }
-
-        .file-input {
-            display: none;
-        }
+        .upload-area:hover { border-color: var(--primary); background: rgba(16, 185, 129, 0.1); transform: translateY(-2px); }
+        .file-input { display: none; }
 
         .btn {
             background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-            color: #042F2E;
-            border: none;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            width: 100%;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            color: #042F2E; border: none; padding: 14px 28px; border-radius: 12px;
+            font-size: 16px; font-weight: 700; cursor: pointer; display: inline-flex;
+            align-items: center; justify-content: center; gap: 10px; width: 100%;
+            transition: all 0.3s; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
         }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-            border: 1px solid var(--border);
-            box-shadow: none;
-            margin-top: 20px;
-            text-decoration: none;
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5); }
+        .btn-secondary { background: rgba(255, 255, 255, 0.08); color: var(--text-main); border: 1px solid var(--border); box-shadow: none; margin-top: 20px; text-decoration: none; }
 
         /* Result View */
-        .result-grid {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 28px;
-            align-items: start;
-        }
+        .result-grid { display: grid; grid-template-columns: 280px 1fr; gap: 28px; align-items: start; }
+        @media (max-width: 768px) { .result-grid { grid-template-columns: 1fr; } }
 
-        @media (max-width: 768px) {
-            .result-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        .leaf-preview { width: 100%; border-radius: 12px; border: 2px solid var(--border); object-fit: cover; max-height: 280px; }
+        .disease-badge { display: inline-block; background: rgba(16, 185, 129, 0.15); border: 1px solid var(--primary); color: var(--primary); padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
 
-        .leaf-preview {
-            width: 100%;
-            border-radius: 12px;
-            border: 2px solid var(--border);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-            object-fit: cover;
-            max-height: 280px;
+        .agent-card {
+            background: rgba(6, 78, 59, 0.4); border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 12px; padding: 20px; margin-top: 16px;
         }
-
-        .disease-badge {
-            display: inline-block;
-            background: rgba(16, 185, 129, 0.15);
-            border: 1px solid var(--primary);
-            color: var(--primary);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
-
-        .disease-title {
-            font-size: 1.8rem;
-            margin-bottom: 14px;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .confidence-box {
-            margin-bottom: 20px;
-        }
-
-        .confidence-header {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-        }
-
-        .progress-bar-bg {
-            background: rgba(255, 255, 255, 0.1);
-            height: 10px;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-
-        .progress-bar-fill {
-            background: linear-gradient(90deg, #10B981, #34D399);
-            height: 100%;
-            border-radius: 5px;
-            transition: width 1s ease-out;
-        }
-
-        .advisory-card {
-            background: rgba(6, 78, 59, 0.3);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            border-radius: 12px;
-            padding: 18px;
-            margin-top: 16px;
-        }
-
-        .advisory-card h4 {
-            color: #A7F3D0;
-            font-size: 14px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .advisory-card p {
-            color: #D1FAE5;
-            font-size: 14px;
-            line-height: 1.6;
-        }
+        .agent-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgba(16, 185, 129, 0.2); padding-bottom: 8px; }
+        .agent-title { color: #A7F3D0; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .agent-badge { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+        .rehab-list { margin-left: 20px; color: #D1FAE5; font-size: 13px; line-height: 1.6; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="header-icon"><i class="fas fa-leaf"></i></div>
-            <h1>Smart Crop Disease Detector</h1>
-            <p>MobileNetV2 Transfer Learning Deep Learning Diagnostics for 12 Crop Diseases & Pests</p>
+            <div class="header-icon"><i class="fas fa-robot"></i></div>
+            <h1>Smart Crop Disease & AI Agronomist Portal</h1>
+            <p>MobileNetV2 Deep Learning Vision & Autonomous AI Agronomist Agent Advisory</p>
             <div class="stats-badge">
-                <i class="fas fa-shield-alt"></i> Model Accuracy: <strong>{{ accuracy }}</strong>
+                <i class="fas fa-shield-alt"></i> Model Accuracy: <strong>{{ accuracy }}</strong> | <i class="fas fa-brain"></i> AI Agent Active
             </div>
         </div>
 
         <div class="glass-card">
             {% if not result %}
             <!-- Upload View -->
-            <form method="POST" action="/predict" enctype="multipart/form-data" id="uploadForm">
+            <form method="POST" action="/predict" enctype="multipart/form-data">
                 <div class="upload-area" onclick="document.getElementById('imageInput').click()">
-                    <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                    <div style="font-size: 2.5rem; color: var(--primary); margin-bottom: 12px;"><i class="fas fa-cloud-upload-alt"></i></div>
                     <h3 style="margin-bottom: 6px;">Click or Drag Leaf Image Here</h3>
-                    <p style="font-size: 13px; color: #9CA3AF;">Supports JPG, JPEG, and PNG plant leaf photos</p>
+                    <p style="font-size: 13px; color: #9CA3AF;">Supports JPG, JPEG, and PNG crop photos</p>
                     <input type="file" name="image" id="imageInput" class="file-input" accept="image/*" required onchange="previewFile()">
                 </div>
                 
                 <div id="filePreviewName" style="text-align: center; color: var(--primary); font-size: 14px; margin-bottom: 16px; display: none;"></div>
 
                 <button type="submit" class="btn">
-                    <i class="fas fa-microscope"></i> Diagnose Crop Leaf
+                    <i class="fas fa-microscope"></i> Diagnose & Query AI Agronomist
                 </button>
             </form>
             {% else %}
@@ -426,23 +195,45 @@ HTML_TEMPLATE = '''
 
                 <div>
                     <span class="disease-badge"><i class="fas fa-virus"></i> {{ result.class_name }}</span>
-                    <h2 class="disease-title">
-                        <span>{{ result.icon }}</span> {{ result.title }}
-                    </h2>
+                    <h2 style="color: white; margin-bottom: 12px;">{{ result.class_name.title() }}</h2>
 
-                    <div class="confidence-box">
-                        <div class="confidence-header">
-                            <span>AI Diagnostic Confidence</span>
+                    <div style="margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">
+                            <span>AI Visual Confidence</span>
                             <span><strong>{{ result.confidence_pct }}%</strong></span>
                         </div>
-                        <div class="progress-bar-bg">
-                            <div class="progress-bar-fill" style="width: {{ result.confidence_pct }}%;"></div>
+                        <div style="background: rgba(255, 255, 255, 0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+                            <div style="background: var(--primary); height: 100%; width: {{ result.confidence_pct }}%;"></div>
                         </div>
                     </div>
 
-                    <div class="advisory-card">
-                        <h4><i class="fas fa-kit-medical"></i> Agricultural Advisory & Remedy</h4>
-                        <p>{{ result.treatment }}</p>
+                    <!-- AI Agronomist Agent Card -->
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-title"><i class="fas fa-user-nurse"></i> AI Agronomist Rehabilitation Agent</span>
+                            <span class="agent-badge">{{ agent_data.source }}</span>
+                        </div>
+
+                        {% if agent_data.rehab_plan %}
+                        <h5 style="color: #A7F3D0; font-size: 13px; margin-bottom: 6px;">📋 4-Week Crop Recovery Plan:</h5>
+                        <ul class="rehab-list">
+                            {% for step in agent_data.rehab_plan %}
+                            <li>{{ step }}</li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+
+                        {% if agent_data.organic_remedy %}
+                        <p style="font-size: 13px; color: #D1FAE5; margin-top: 10px;">
+                            <strong>🌱 Organic Remedy:</strong> {{ agent_data.organic_remedy }}
+                        </p>
+                        {% endif %}
+
+                        {% if agent_data.response %}
+                        <div style="font-size: 13px; color: #D1FAE5; white-space: pre-line;">
+                            {{ agent_data.response }}
+                        </div>
+                        {% endif %}
                     </div>
 
                     <a href="/" class="btn btn-secondary">
@@ -470,12 +261,12 @@ HTML_TEMPLATE = '''
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE, result=None, accuracy=model_accuracy_display)
+    return render_template_string(HTML_TEMPLATE, result=None, agent_data=None, accuracy=model_accuracy_display)
 
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'image' not in request.files or not request.files['image'].filename:
-        return render_template_string(HTML_TEMPLATE, result=None, accuracy=model_accuracy_display)
+        return render_template_string(HTML_TEMPLATE, result=None, agent_data=None, accuracy=model_accuracy_display)
 
     file = request.files['image']
     filename = file.filename
@@ -494,29 +285,18 @@ def predict():
             predicted_class = class_names[idx] if idx < len(class_names) else "unknown"
             confidence = float(np.max(prediction[0]))
         else:
-            # Fallback mock prediction if weights aren't loaded in test environment
             predicted_class = "healthy"
             confidence = 0.95
 
-        # Fetch Advisory
-        adv_info = ADVISORY_KNOWLEDGE_BASE.get(
-            predicted_class.lower(),
-            {
-                "title": predicted_class.title(),
-                "treatment": "Inspect leaf symptoms regularly and consult local agricultural extension officers.",
-                "icon": "🔍"
-            }
-        )
-
         result_data = {
             "class_name": predicted_class,
-            "title": adv_info["title"],
-            "treatment": adv_info["treatment"],
-            "icon": adv_info["icon"],
             "confidence_pct": f"{confidence * 100:.1f}"
         }
 
-        # Convert Image to Base64 for Preview
+        # Query Autonomous AI Agronomist Agent
+        agent_advisory = query_agronomist_agent(predicted_class)
+
+        # Convert Image to Base64
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode()
@@ -524,6 +304,7 @@ def predict():
         return render_template_string(
             HTML_TEMPLATE,
             result=result_data,
+            agent_data=agent_advisory,
             image_base64=img_base64,
             filename=filename,
             accuracy=model_accuracy_display
@@ -531,7 +312,7 @@ def predict():
 
     except Exception as e:
         print(f"Prediction Error: {e}")
-        return render_template_string(HTML_TEMPLATE, result=None, accuracy=model_accuracy_display)
+        return render_template_string(HTML_TEMPLATE, result=None, agent_data=None, accuracy=model_accuracy_display)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
